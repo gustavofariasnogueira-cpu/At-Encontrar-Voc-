@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Até Encontrar Você - Leitor de Quadrinhos</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: #121212;
+            color: #f0f0f0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Barra Superior */
+        header {
+            background-color: #1e1e1e;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            z-index: 20;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .title-area h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffb74d;
+        }
+
+        .controls-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select {
+            background-color: #2c2c2c;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Área Principal do Quadrinho */
+        main {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            perspective: 1800px; /* Necessário para o efeito 3D de página */
+            background: radial-gradient(circle at center, #222 0%, #0d0d0d 100%);
+        }
+
+        .page-stage {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transform-style: preserve-3d;
+            transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.35s ease;
+        }
+
+        /* Animações de transição de página */
+        .turn-next-out {
+            transform-origin: left center;
+            transform: rotateY(-75deg) scale(0.95);
+            opacity: 0;
+        }
+
+        .turn-prev-out {
+            transform-origin: right center;
+            transform: rotateY(75deg) scale(0.95);
+            opacity: 0;
+        }
+
+        .turn-next-in {
+            transform-origin: right center;
+            transform: rotateY(45deg) scale(0.95);
+            opacity: 0;
+            transition: none;
+        }
+
+        .turn-prev-in {
+            transform-origin: left center;
+            transform: rotateY(-45deg) scale(0.95);
+            opacity: 0;
+            transition: none;
+        }
+
+        #comic-image {
+            max-width: 95%;
+            max-height: 94%;
+            object-fit: contain;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
+            border-radius: 4px;
+            cursor: grab;
+            transition: transform 0.15s ease-out;
+            transform-origin: center center;
+        }
+
+        #comic-image:active {
+            cursor: grabbing;
+        }
+
+        /* Botões Laterais Flutuantes */
+        .nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(30, 30, 30, 0.75);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.15);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            font-size: 1.4rem;
+            cursor: pointer;
+            z-index: 15;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s;
+        }
+
+        .nav-arrow:hover:not(:disabled) {
+            background-color: #ffb74d;
+            color: #121212;
+            transform: translateY(-50%) scale(1.08);
+        }
+
+        .nav-arrow:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
+
+        #prev-btn { left: 16px; }
+        #next-btn { right: 16px; }
+
+        /* Barra Inferior de Controles */
+        footer {
+            background-color: #1e1e1e;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            border-top: 1px solid #333;
+            z-index: 20;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background-color: #2c2c2c;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 7px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: #3d3d3d;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #252525;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid #383838;
+        }
+
+        #zoom-level {
+            min-width: 48px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #ccc;
+        }
+
+        /* Mensagem de erro caso não ache a imagem */
+        #error-msg {
+            display: none;
+            position: absolute;
+            background: rgba(200, 40, 40, 0.9);
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        @media (max-width: 600px) {
+            .nav-arrow {
+                width: 38px;
+                height: 38px;
+                font-size: 1.1rem;
+            }
+            #prev-btn { left: 8px; }
+            #next-btn { right: 8px; }
+            .title-area h1 { font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="title-area">
+            <h1>Até Encontrar Você</h1>
+        </div>
+        <div class="controls-top">
+            <select id="page-select" aria-label="Selecionar página"></select>
+        </div>
+    </header>
+
+    <main id="viewer-container">
+        <button id="prev-btn" class="nav-arrow" title="Página Anterior (Seta Esquerda)">&#10094;</button>
+        
+        <div class="page-stage" id="page-stage">
+            <img id="comic-image" src="" alt="Página do Quadrinho" draggable="false">
+        </div>
+
+        <div id="error-msg">
+            Não foi possível carregar a imagem.<br>
+            <small id="error-path"></small>
+        </div>
+
+        <button id="next-btn" class="nav-arrow" title="Próxima Página (Seta Direita)">&#10095;</button>
+    </main>
+
+    <footer>
+        <button id="prev-footer" class="btn">&#8592; Anterior</button>
+        
+        <div class="zoom-controls">
+            <button id="zoom-out" class="btn" title="Diminuir Zoom">−</button>
+            <span id="zoom-level">100%</span>
+            <button id="zoom-in" class="btn" title="Aumentar Zoom">+</button>
+            <button id="zoom-reset" class="btn" title="Resetar Zoom">Resetar</button>
+        </div>
+
+        <button id="next-footer" class="btn">Próxima &#8594;</button>
+    </footer>
+
+    <script>
+        // Lista exata baseada na sua pasta img
+        const pages = ["00 Capa"];
+        for (let i = 1; i <= 31; i++) {
+            pages.push(`Cap ${i}`);
+        }
+
+        // Extensões possíveis para testar automaticamente
+        const extensions = ['jpg', 'png', 'jpeg', 'webp'];
+        let detectedExt = null;
+
+        let currentIndex = 0;
+        let isAnimating = false;
+
+        // Variáveis de Zoom e Arraste (Pan)
+        let scale = 1;
+        let pointX = 0;
+        let pointY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+
+        // Elementos DOM
+        const img = document.getElementById('comic-image');
+        const stage = document.getElementById('page-stage');
+        const pageSelect = document.getElementById('page-select');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const prevFooter = document.getElementById('prev-footer');
+        const nextFooter = document.getElementById('next-footer');
+        const zoomLevelText = document.getElementById('zoom-level');
+        const errorMsg = document.getElementById('error-msg');
+        const errorPath = document.getElementById('error-path');
+        const viewerContainer = document.getElementById('viewer-container');
+
+        // Preenche o menu seletor
+        pages.forEach((name, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = index === 0 ? "Capa" : `Capítulo ${index} (${name})`;
+            pageSelect.appendChild(option);
+        });
+
+        // Carrega a imagem testando a extensão automaticamente
+        function loadImage(fileName) {
+            errorMsg.style.display = 'none';
+            img.style.display = 'block';
+            
+            if (detectedExt) {
+                img.src = `img/${encodeURIComponent(fileName)}.${detectedExt}`;
+                return;
+            }
+
+            let extIndex = 0;
+            function tryNextExt() {
+                if (extIndex >= extensions.length) {
+                    img.style.display = 'none';
+                    errorMsg.style.display = 'block';
+                    errorPath.textContent = `Procurado em: img/${fileName}.(jpg/png/webp)`;
+                    return;
+                }
+                const currentExt = extensions[extIndex];
+                const testImg = new Image();
+                testImg.onload = () => {
+                    detectedExt = currentExt;
+                    img.src = testImg.src;
+                };
+                testImg.onerror = () => {
+                    extIndex++;
+                    tryNextExt();
+                };
+                testImg.src = `img/${encodeURIComponent(fileName)}.${currentExt}`;
+            }
+            tryNextExt();
+        }
+
+        // Atualiza botões e seletor
+        function updateUI() {
+            pageSelect.value = currentIndex;
+            const isFirst = currentIndex === 0;
+            const isLast = currentIndex === pages.length - 1;
+
+            prevBtn.disabled = isFirst;
+            prevFooter.disabled = isFirst;
+            nextBtn.disabled = isLast;
+            nextFooter.disabled = isLast;
+        }
+
+        // Troca de página com efeito 3D
+        function goToPage(newIndex, direction = null) {
+            if (newIndex < 0 || newIndex >= pages.length || newIndex === currentIndex || isAnimating) return;
+
+            resetZoom();
+
+            if (!direction) {
+                currentIndex = newIndex;
+                loadImage(pages[currentIndex]);
+                updateUI();
+                return;
+            }
+
+            isAnimating = true;
+            const outClass = direction === 'next' ? 'turn-next-out' : 'turn-prev-out';
+            const inClass = direction === 'next' ? 'turn-next-in' : 'turn-prev-in';
+
+            // 1. Vira a página atual para fora
+            stage.classList.add(outClass);
+
+            setTimeout(() => {
+                // 2. Troca a imagem e posiciona a nova página no ângulo de entrada
+                currentIndex = newIndex;
+                loadImage(pages[currentIndex]);
+                updateUI();
+
+                stage.classList.remove(outClass);
+                stage.classList.add(inClass);
+
+                // Força o navegador a aplicar o estado inicial antes de animar a entrada
+                void stage.offsetWidth;
+
+                // 3. Traz a nova página para o centro
+                stage.classList.remove(inClass);
+
+                setTimeout(() => {
+                    isAnimating = false;
+                }, 400);
+            }, 320);
+        }
+
+        // Funções de Zoom e Movimento
+        function applyTransform() {
+            img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+            zoomLevelText.textContent = `${Math.round(scale * 100)}%`;
+        }
+
+        function setZoom(newScale) {
+            scale = Math.min(Math.max(1, newScale), 4); // Limite entre 100% e 400%
+            if (scale === 1) {
+                pointX = 0;
+                pointY = 0;
+            }
+            applyTransform();
+        }
+
+        function resetZoom() {
+            scale = 1;
+            pointX = 0;
+            pointY = 0;
+            applyTransform();
+        }
+
+        // Eventos dos botões
+        prevBtn.addEventListener('click', () => goToPage(currentIndex - 1, 'prev'));
+        prevFooter.addEventListener('click', () => goToPage(currentIndex - 1, 'prev'));
+        nextBtn.addEventListener('click', () => goToPage(currentIndex + 1, 'next'));
+        nextFooter.addEventListener('click', () => goToPage(currentIndex + 1, 'next'));
+
+        pageSelect.addEventListener('change', (e) => {
+            const target = parseInt(e.target.value);
+            const dir = target > currentIndex ? 'next' : 'prev';
+            goToPage(target, dir);
+        });
+
+        document.getElementById('zoom-in').addEventListener('click', () => setZoom(scale + 0.35));
+        document.getElementById('zoom-out').addEventListener('click', () => setZoom(scale - 0.35));
+        document.getElementById('zoom-reset').addEventListener('click', resetZoom);
+
+        // Duplo clique para dar zoom rápido
+        img.addEventListener('dblclick', () => {
+            if (scale > 1) {
+                resetZoom();
+            } else {
+                setZoom(2);
+            }
+        });
+
+        // Zoom com a roda do mouse
+        viewerContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.2 : -0.2;
+            setZoom(scale + delta);
+        }, { passive: false });
+
+        // Arrastar imagem com mouse
+        img.addEventListener('mousedown', (e) => {
+            if (scale <= 1) return;
+            isDragging = true;
+            startX = e.clientX - pointX;
+            startY = e.clientY - pointY;
+            img.style.transition = 'none';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            pointX = e.clientX - startX;
+            pointY = e.clientY - startY;
+            applyTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                img.style.transition = 'transform 0.15s ease-out';
+            }
+        });
+
+        // Suporte a Touch (Arrastar com zoom ou Swipe para trocar página no celular)
+        let touchStartX = 0;
+        img.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                if (scale > 1) {
+                    isDragging = true;
+                    startX = e.touches[0].clientX - pointX;
+                    startY = e.touches[0].clientY - pointY;
+                    img.style.transition = 'none';
+                }
+            }
+        });
+
+        img.addEventListener('touchmove', (e) => {
+            if (isDragging && scale > 1 && e.touches.length === 1) {
+                e.preventDefault();
+                pointX = e.touches[0].clientX - startX;
+                pointY = e.touches[0].clientY - startY;
+                applyTransform();
+            }
+        }, { passive: false });
+
+        img.addEventListener('touchend', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                img.style.transition = 'transform 0.15s ease-out';
+                return;
+            }
+            // Se não estiver com zoom, deslizar o dedo troca de página
+            if (scale === 1 && e.changedTouches.length === 1) {
+                const touchEndX = e.changedTouches[0].clientX;
+                const diff = touchStartX - touchEndX;
+                if (Math.abs(diff) > 50) {
+                    if (diff > 0) goToPage(currentIndex + 1, 'next');
+                    else goToPage(currentIndex - 1, 'prev');
+                }
+            }
+        });
+
+        // Teclado (Setas e +/-)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') goToPage(currentIndex + 1, 'next');
+            if (e.key === 'ArrowLeft') goToPage(currentIndex - 1, 'prev');
+            if (e.key === '+' || e.key === '=') setZoom(scale + 0.35);
+            if (e.key === '-') setZoom(scale - 0.35);
+            if (e.key === '0') resetZoom();
+        });
+
+        // Inicializa na Capa
+        loadImage(pages[0]);
+        updateUI();
+    </script>
+</body>
+</html>
